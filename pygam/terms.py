@@ -618,6 +618,155 @@ class LinearTerm(Term):
         return sp.sparse.csc_matrix(X[:, self.feature][:, np.newaxis])
 
 
+class FunctionTerm(Term):
+    def __init__(self, feature, fnDict, lam=0.6, penalties='auto', verbose=False):
+        """creates an instance of a LinearTerm
+
+        Parameters
+        ----------
+        feature : int
+            Index of the feature to use for the feature function.
+
+        functionDict : Dictionary
+            Dictionary of
+            key: function name string
+            value: functionwith a single parameter of an array, returning an array of the same size
+
+        lam :  float or iterable of floats
+            Strength of smoothing penalty. Must be a positive float.
+            Larger values enforce stronger smoothing.
+
+            If single value is passed, it will be repeated for every penalty.
+
+            If iterable is passed, the length of `lam` must be equal to the
+            length of `penalties`
+
+        penalties : {'auto', 'derivative', 'l2', None} or callable or iterable
+            Type of smoothing penalty to apply to the term.
+
+            If an iterable is used, multiple penalties are applied to the term.
+            The length of the iterable must match the length of `lam`.
+
+            If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
+            and L2/ridge smoothing for 'categorical' dtypes.
+
+            Custom penalties can be passed as a callable.
+
+        Attributes
+        ----------
+        n_coefs : int
+            Number of coefficients contributed by the term to the model
+
+        istensor : bool
+            whether the term is a tensor product of sub-terms
+
+        isintercept : bool
+            whether the term is an intercept
+
+        hasconstraint : bool
+            whether the term has any constraints
+
+        info : dict
+            contains dict with the sufficient information to duplicate the term
+        """
+        self._name = 'function_term'
+        self._minimal_name = 'fn'
+        self._functionDict = fnDict
+
+        super(FunctionTerm, self).__init__(
+            feature=feature,
+            lam=lam,
+            penalties=penalties,
+            constraints=None,
+            dtype='numerical',
+            fit_linear=True,
+            fit_splines=False,
+            verbose=verbose,
+        )
+        self._exclude += ['fit_splines', 'fit_linear', 'dtype', 'constraints']
+
+    def __repr__(self):
+        if hasattr(self, '_minimal_name'):
+            name = self._minimal_name
+        else:
+            name = self.__class__.__name__
+
+        features = [] if self.feature is None else self.feature
+        features = np.atleast_1d(features).tolist()
+
+        fnDict = {}
+        for i, (fnStr,_) in enumerate(self._functionDict.items()):
+            fnDict['f{}'.format(i)] = fnStr
+
+        return nice_repr(
+            name,
+            fnDict,
+            line_width=self._line_width,
+            line_offset=self._line_offset,
+            decimals=4,
+            args=features,
+        )
+
+    @property
+    def n_coefs(self):
+        """Number of coefficients contributed by the term to the model"""
+        return len(self._functionDict)
+
+    def compile(self, X, verbose=False):
+        """method to validate and prepare data-dependent parameters
+
+        Parameters
+        ---------
+        X : array-like
+            Input dataset
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        None
+        """
+        if self.feature >= X.shape[1]:
+            raise ValueError(
+                'term requires feature {}, '
+                'but X has only {} dimensions'.format(self.feature, X.shape[1])
+            )
+
+        if self._functionDict == None:
+            raise ValueError(
+                'term requires functionDict {}, '.format(self._functionDict)
+            )
+
+        if len(self._functionDict) < 1:
+            raise ValueError(
+                'term requires functionDict len > 0 but has {}, '.format(len(self._functionDict))
+            )
+        return self
+
+    def build_columns(self, X, verbose=False):
+        """construct the model matrix columns for the term
+
+        Parameters
+        ----------
+        X : array-like
+            Input dataset with n rows
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        scipy sparse array with n rows
+        """
+        result = np.zeros((X.shape[0], len(self._functionDict)))
+
+        for i, (_, fn) in enumerate(self._functionDict.items()):
+            result[:,i] = fn(X[:, self.feature])
+
+        return sp.sparse.csc_matrix(result)
+
+
 class SplineTerm(Term):
     _bases = ['ps', 'cp']
 
@@ -1889,6 +2038,14 @@ def l(feature, lam=0.6, penalties='auto', verbose=False):  # noqa: E743
     """
     return LinearTerm(feature=feature, lam=lam, penalties=penalties, verbose=verbose)
 
+def fn(feature, fnDict, lam=0.6, penalties='auto', verbose=False):  # noqa: E743
+    """
+
+    See Also
+    --------
+    FunctionTerm : for developer details
+    """
+    return FunctionTerm(feature=feature, fnDict=fnDict, lam=lam, penalties=penalties, verbose=verbose)
 
 def s(
     feature,
@@ -1950,7 +2107,7 @@ intercept = Intercept()
 
 # copy docs
 for minimal_, class_ in zip(
-    [l, s, f, te], [LinearTerm, SplineTerm, FactorTerm, TensorTerm]
+    [l, s, f, te, fn], [LinearTerm, SplineTerm, FactorTerm, TensorTerm, FunctionTerm]
 ):
     minimal_.__doc__ = class_.__init__.__doc__ + minimal_.__doc__
 
@@ -1962,5 +2119,6 @@ TERMS = {
     'spline_term': SplineTerm,
     'factor_term': FactorTerm,
     'tensor_term': TensorTerm,
+    'function_term': FunctionTerm,
     'term_list': TermList,
 }
