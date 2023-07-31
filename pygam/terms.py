@@ -742,6 +742,12 @@ class FunctionTerm(Term):
             raise ValueError(
                 'term requires functionDict len > 0 but has {}, '.format(len(self._functionDict))
             )
+
+        self.edge_knots_ = gen_edge_knots(
+            X[:, self.feature], self.dtype, verbose=verbose
+        )
+        return self
+
         return self
 
     def build_columns(self, X, verbose=False):
