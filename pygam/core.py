@@ -51,7 +51,13 @@ def nice_repr(
     ks = list(param_kvs.keys())
     vs = list(param_kvs.values())
     idxs = np.argsort(ks)
-    param_kvs = [(ks[i], vs[i]) for i in idxs]
+
+    param_kvs = []
+    for i in idxs:
+        if vs[i] is not None:
+            param_kvs.append((ks[i], vs[i]))
+        else:
+            param_kvs.append((None, ks[i]))
 
     if args is not None:
         param_kvs = [(None, arg) for arg in args] + param_kvs

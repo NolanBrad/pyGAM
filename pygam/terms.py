@@ -7,6 +7,7 @@ from abc import abstractmethod, abstractproperty
 from collections import defaultdict
 import warnings
 from copy import deepcopy
+from inspect import signature
 
 import numpy as np
 import scipy as sp
@@ -674,8 +675,21 @@ class FunctionTerm(Term):
         self._functionDict = fnDict
         self.edge_knots_ = None
 
+        #isinstance(self.feature, (list, tuple, np.ndarray))
+        if  np.array(feature).ndim == 0:
+            self.features = np.tile(np.array(feature), (len(self._functionDict),1) )
+        elif  np.array(feature).ndim == 1:
+            self.features =  np.tile(feature, (len(self._functionDict),1) )
+        elif np.array(feature).ndim == 2:
+            self.features = np.array(feature)
+        else:
+            raise ValueError( 'FunctionTerm requires feature {}, to be an array'.format(self.feature))
+
+
+        flat_feature = np.unique(self.features.flatten()).tolist()
+
         super(FunctionTerm, self).__init__(
-            feature=feature,
+            feature=flat_feature,
             lam=lam,
             penalties=penalties,
             constraints=None,
@@ -692,12 +706,10 @@ class FunctionTerm(Term):
         else:
             name = self.__class__.__name__
 
-        features = [] if self.feature is None else self.feature
-        features = np.atleast_1d(features).tolist()
-
         fnDict = {}
         for i, (fnStr,_) in enumerate(self._functionDict.items()):
-            fnDict['f{}'.format(i)] = fnStr
+            args = ','.join([str(x) for x in self.features[i]])
+            fnDict['{}({})'.format(fnStr,args)] = None
 
         return nice_repr(
             name,
@@ -705,7 +717,7 @@ class FunctionTerm(Term):
             line_width=self._line_width,
             line_offset=self._line_offset,
             decimals=4,
-            args=features,
+            args=None,
         )
 
     @property
@@ -728,28 +740,30 @@ class FunctionTerm(Term):
         -------
         None
         """
-        if self.feature >= X.shape[1]:
-            raise ValueError(
-                'term requires feature {}, '
-                'but X has only {} dimensions'.format(self.feature, X.shape[1])
-            )
-
         if self._functionDict == None:
             raise ValueError(
-                'term requires functionDict {}, '.format(self._functionDict)
+                'FunctionTerm requires functionDict {}, '.format(self._functionDict)
             )
 
         if len(self._functionDict) < 1:
             raise ValueError(
-                'term requires functionDict len > 0 but has {}, '.format(len(self._functionDict))
+                'FunctionTerm requires functionDict len > 0 but has {}, '.format(len(self._functionDict))
             )
 
         self.edge_knots_ = gen_edge_knots(
             X[:, self.feature], self.dtype, verbose=verbose
         )
-        return self
+
+        for i, (funcStr, func) in enumerate(self._functionDict.items()):
+            n_params = len(signature(func).parameters)
+            n_feats = len(self.features[i])
+            if n_params != n_feats:
+                raise ValueError(
+                    'FunctionTerm requires number of features for function {} to be len {} but has {}, '.format(funcStr, n_feats, n_params)
+                )
 
         return self
+
 
     def build_columns(self, X, verbose=False):
         """construct the model matrix columns for the term
@@ -769,7 +783,10 @@ class FunctionTerm(Term):
         result = np.zeros((X.shape[0], len(self._functionDict)))
 
         for i, (_, fn) in enumerate(self._functionDict.items()):
-            result[:,i] = fn(X[:, self.feature])
+            xlist = []
+            for feat in self.features[i]:
+                xlist.append(X[:, feat])
+            result[:,i] = fn(*xlist)
 
         return sp.sparse.csc_matrix(result)
 
@@ -1265,7 +1282,7 @@ class MetaTermMixin(object):
 
             allNone = True
             for val in values:
-                if val != None:
+                if val is not None:
                     allNone = False
 
             if allNone:
