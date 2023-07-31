@@ -672,6 +672,7 @@ class FunctionTerm(Term):
         self._name = 'function_term'
         self._minimal_name = 'fn'
         self._functionDict = fnDict
+        self.edge_knots_ = None
 
         super(FunctionTerm, self).__init__(
             feature=feature,
