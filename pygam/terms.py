@@ -1263,7 +1263,7 @@ class MetaTermMixin(object):
 
                 values.append(getattr(term, name, None))
 
-            if values == [] or (len(values) == 1 and values[0] == None:
+            if values == [] or (len(values) == 1 and values[0] == None):
                 values = None
             return values
 
