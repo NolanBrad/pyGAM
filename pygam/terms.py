@@ -1262,6 +1262,9 @@ class MetaTermMixin(object):
                     continue
 
                 values.append(getattr(term, name, None))
+
+            if values == [] or (len(values) == 1 and values[0] == None:
+                values = None
             return values
 
         return self._super_get(name)
