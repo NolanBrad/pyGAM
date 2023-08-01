@@ -747,9 +747,9 @@ class FunctionTerm(Term):
                 'FunctionTerm requires functionDict {}, '.format(self._functionDict)
             )
 
-        if len(self._functionDict) < 1:
+        if len(self._functionDict) != len(self.features):
             raise ValueError(
-                'FunctionTerm requires functionDict len > 0 but has {}, '.format(len(self._functionDict))
+                'FunctionTerm requires functionDict len {} to be the same as features len, but has {}, '.format(len(self._functionDict),  len(self.features))
             )
 
         self.edge_knots_ = gen_edge_knots(
