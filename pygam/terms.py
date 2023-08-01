@@ -677,7 +677,7 @@ class FunctionTerm(Term):
         self._functionDict = fnDict
         self.edge_knots_ = None
 
-        #isinstance(self.feature, (list, tuple, np.ndarray))
+        # Sort out the feature parameter, convert to the superset of 2 dim array
         if  np.array(feature).ndim == 0:
             self.features = np.tile(np.array(feature), (len(self._functionDict),1) )
         elif  np.array(feature).ndim == 1:
@@ -756,6 +756,7 @@ class FunctionTerm(Term):
             X[:, self.feature], self.dtype, verbose=verbose
         )
 
+        # Check the features and fnDict parameters match
         for i, (funcStr, func) in enumerate(self._functionDict.items()):
             n_params = len(signature(func).parameters)
             n_feats = len(self.features[i])
