@@ -625,10 +625,12 @@ class FunctionTerm(Term):
 
         Parameters
         ----------
-        feature : int
-            Index of the feature to use for the feature function.
+        feature : int or array
+            int: Index of the feature to use for the feature function. Will be used for all functions in fnDict
+            1 dim array of ints: Indexs of the features to use for the feature function. Will be used for all functions in fnDict
+            2 dim array of ints: Array for each function in fnDict. Indexs of the features to use for the indexed feature function.
 
-        functionDict : Dictionary
+        fnDict : Dictionary
             Dictionary of
             key: function name string
             value: functionwith a single parameter of an array, returning an array of the same size
