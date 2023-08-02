@@ -316,13 +316,13 @@ def check_X(
     # check our categorical data has no new categories
     if (edge_knots is not None) and (dtypes is not None) and (features is not None):
         # get a flattened list of tuples
-        edge_knots = flatten(edge_knots)[::-1]
-        dtypes = flatten(dtypes)
-        assert len(edge_knots) % 2 == 0  # sanity check
+        #edge_knots = flatten(edge_knots)[::-1]
+        #dtypes = flatten(dtypes)
+        #assert len(edge_knots) % 2 == 0  # sanity check
 
         # form pairs
-        n = len(edge_knots) // 2
-        edge_knots = [(edge_knots.pop(), edge_knots.pop()) for _ in range(n)]
+        #n = len(edge_knots) // 2
+        #edge_knots = [(edge_knots.pop(), edge_knots.pop()) for _ in range(n)]
 
         # check each categorical term
         for i, ek in enumerate(edge_knots):
