@@ -405,21 +405,21 @@ class Term(Core):
 
         return Cs
 
-    def _gen_edge_knots(self, data, verbose=True):
+    def _gen_edge_knots(self, data, dtype, verbose=True):
 
         if hasattr(self, 'feature'):
             if isiterable(self.feature):
                 # Multiple features
-                self.edge_knots_ = np.array(len(self.feature), 2)
-                for feat in self.features:
-                    self.edge_knots_[feat] = gen_edge_knots(
-                        data[:, feat], self.dtype, verbose=verbose
-                    )
+                self.edge_knots_ = []
+                for feat in self.feature:
+                    self.edge_knots_.append( gen_edge_knots(
+                        data[:, feat], dtype, verbose=verbose
+                    ))
 
             else:
                 # Single feature
                 self.edge_knots_ = gen_edge_knots(
-                    data[:, self.feature], self.dtype, verbose=verbose
+                    data[:, self.feature], dtype, verbose=verbose
                 )
 
 
