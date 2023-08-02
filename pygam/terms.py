@@ -1035,7 +1035,11 @@ class SplineTerm(Term):
         -------
         scipy sparse array with n rows
         """
-        X[:, self.feature][:, np.newaxis]
+        #X[:, self.feature][:, np.newaxis]
+
+        # Splines only one feature, and thus one set of edge knots
+        if isiterable(self.feature) or np.array(self.edge_knots_).ndim > 1:
+            raise ValueError('Splines cant have multiple features or muliple edge knots')
 
         splines = b_spline_basis(
             X[:, self.feature],
