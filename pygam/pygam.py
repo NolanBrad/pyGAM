@@ -1457,8 +1457,13 @@ class GAM(Core, MetaTermMixin):
             terms = [self.terms[term]]
 
         X = np.zeros((n, self.statistics_['m_features']))
-        for term_, x in zip(terms, Xs):
-            X[:, term_.feature] = x.ravel()
+        for term_ in terms:
+            if isiterable(term_.feature):
+                for i, feat in enumerate(term_.feature):
+                    X[:, feat] = Xs[i].ravel()
+            else:
+                X[:,term_.feature] = Xs.ravel()
+
         return X
 
     def generate_X_grid(self, term, n=100, meshgrid=False):
@@ -1502,6 +1507,9 @@ class GAM(Core, MetaTermMixin):
             If the term requested is an intercept
             since it does not make sense to process the intercept term.
         """
+        if term < 0 or term >= len(self.terms):
+            raise AttributeError('term is out of bounds. -1 doesnt work here')
+
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
@@ -1525,18 +1533,31 @@ class GAM(Core, MetaTermMixin):
 
         # all other Terms
         elif hasattr(self.terms[term], 'edge_knots_'):
-            x = np.linspace(
-                self.terms[term].edge_knots_[0], self.terms[term].edge_knots_[1], num=n
-            )
+            x = {}
+            if np.array(self.terms[term].edge_knots_).ndim > 1 and isiterable(self.terms[term].feature):
+
+                for i, feat in enumerate(self.terms[term].feature):
+                    ek = self.terms[term].edge_knots_[i]
+                    x[feat] = np.linspace( ek[0], ek[1], num=n)
+            else:
+                ek = self.terms[term].edge_knots_
+                x[self.terms[term].feature] = np.linspace( ek[0], ek[1], num=n)
 
             if meshgrid:
-                return (x,)
+                return tuple(v for k, v in x.items())
 
             # fill in feature matrix with only relevant features for this term
             X = np.zeros((n, self.statistics_['m_features']))
-            X[:, self.terms[term].feature] = x
+            if isiterable(self.terms[term].feature):
+                for feat in self.terms[term].feature:
+                    X[:, feat] = x[feat]
+            else:
+                X[:, self.terms[term].feature] = x[self.terms[term].feature]
+
+            self.terms[term].by = 0
             if getattr(self.terms[term], 'by', None) is not None:
-                X[:, self.terms[term].by] = 1.0
+                if self.terms[term].by not in flatten(self.terms[term].feature):
+                    X[:, self.terms[term].by] = 1.0
 
             return X
 
