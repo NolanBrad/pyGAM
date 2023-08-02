@@ -405,6 +405,23 @@ class Term(Core):
 
         return Cs
 
+    def _gen_edge_knots(self, data, verbose=True):
+
+        if hasattr(self, 'feature'):
+            if isiterable(self.feature):
+                # Multiple features
+                self.edge_knots_ = np.array(len(self.feature), 2)
+                for feat in self.features:
+                    self.edge_knots_[feat] = gen_edge_knots(
+                        data[:, feat], self.dtype, verbose=verbose
+                    )
+
+            else:
+                # Single feature
+                self.edge_knots_ = gen_edge_knots(
+                    data[:, self.feature], self.dtype, verbose=verbose
+                )
+
 
 class Intercept(Term):
     def __init__(self, verbose=False):
@@ -596,9 +613,8 @@ class LinearTerm(Term):
                 'but X has only {} dimensions'.format(self.feature, X.shape[1])
             )
 
-        self.edge_knots_ = gen_edge_knots(
-            X[:, self.feature], self.dtype, verbose=verbose
-        )
+        self._gen_edge_knots(X, self.dtype, verbose=verbose)
+
         return self
 
     def build_columns(self, X, verbose=False):
@@ -675,7 +691,7 @@ class FunctionTerm(Term):
         self._name = 'function_term'
         self._minimal_name = 'fn'
         self._functionDict = fnDict
-        self.edge_knots_ = None
+
 
         # Sort out the feature parameter, convert to the superset of 2 dim array
         if  np.array(feature).ndim == 0:
@@ -752,9 +768,7 @@ class FunctionTerm(Term):
                 'FunctionTerm requires functionDict len {} to be the same as features len, but has {}, '.format(len(self._functionDict),  len(self.features))
             )
 
-        self.edge_knots_ = gen_edge_knots(
-            X[:, self.feature], self.dtype, verbose=verbose
-        )
+        self._gen_edge_knots(X, self.dtype, verbose=verbose)
 
         # Check the features and fnDict parameters match
         for i, (funcStr, func) in enumerate(self._functionDict.items()):
@@ -1003,9 +1017,7 @@ class SplineTerm(Term):
             )
 
         if not hasattr(self, 'edge_knots_'):
-            self.edge_knots_ = gen_edge_knots(
-                X[:, self.feature], self.dtype, verbose=verbose
-            )
+            self._gen_edge_knots(X, self.dtype, verbose=verbose)
         return self
 
     def build_columns(self, X, verbose=False):
@@ -1155,9 +1167,8 @@ class FactorTerm(SplineTerm):
         super(FactorTerm, self).compile(X)
 
         self.n_splines = len(np.unique(X[:, self.feature]))
-        self.edge_knots_ = gen_edge_knots(
-            X[:, self.feature], self.dtype, verbose=verbose
-        )
+        self._gen_edge_knots(X, self.dtype, verbose=verbose)
+
         return self
 
     def build_columns(self, X, verbose=False):
