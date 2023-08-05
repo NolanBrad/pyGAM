@@ -65,6 +65,10 @@ from pygam.utils import check_param
 from pygam.utils import isiterable
 from pygam.utils import NotPositiveDefiniteError
 from pygam.utils import OptimizationError
+from pygam.utils import attr_any_equal
+from pygam.utils import attr_all_equal
+from pygam.utils import hasattr_any
+from pygam.utils import hasattr_all
 
 from pygam.terms import Term  # noqa: F401
 from pygam.terms import Intercept, intercept  # noqa: F401
@@ -74,6 +78,7 @@ from pygam.terms import FactorTerm, f  # noqa: F401
 from pygam.terms import TensorTerm, te  # noqa: F401
 from pygam.terms import TermList  # noqa: F401
 from pygam.terms import MetaTermMixin  # noqa: F401
+
 
 
 EPS = np.finfo(np.float64).eps  # machine epsilon
@@ -1451,18 +1456,20 @@ class GAM(Core, MetaTermMixin):
         """flatten the mesh and distribute into a feature matrix"""
         n = Xs[0].size
 
-        if self.terms[term].istensor:
+        if term == -1:
+            terms = flatten(self.terms)
+        elif self.terms[term].istensor:
             terms = self.terms[term]
         else:
             terms = [self.terms[term]]
 
         X = np.zeros((n, self.statistics_['m_features']))
-        for term_ in terms:
+        for i,term_ in enumerate(terms):
             if isiterable(term_.feature):
-                for i, feat in enumerate(term_.feature):
-                    X[:, feat] = Xs[i].ravel()
+                for j, feat in enumerate(term_.feature):
+                    X[:, feat] = Xs[j].ravel()
             else:
-                X[:,term_.feature] = Xs.ravel()
+                X[:,term_.feature] = Xs[i].ravel()
 
         return X
 
@@ -1507,20 +1514,28 @@ class GAM(Core, MetaTermMixin):
             If the term requested is an intercept
             since it does not make sense to process the intercept term.
         """
-        if term < 0 or term >= len(self.terms):
-            raise AttributeError('term is out of bounds. -1 doesnt work here')
+        #if term < 0 or term >= len(self.terms):
+        #    raise AttributeError('term is out of bounds. -1 doesnt work here')
+
+        if term == -1:
+            terms = flatten(self.terms)
+            #term = 0
+        elif self.terms[term].istensor:
+            terms = self.terms[term]
+        else:
+            terms = [self.terms[term]]
 
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
         # cant do Intercept
-        if self.terms[term].isintercept:
+        if attr_any_equal(terms, 'isintercept', True):
             raise ValueError('cannot create grid for intercept term')
 
         # process each subterm in a TensorTerm
         if self.terms[term].istensor:
             Xs = []
-            for term_ in self.terms[term]:
+            for term_ in terms:
                 Xs.append(
                     np.linspace(term_.edge_knots_[0], term_.edge_knots_[1], num=n)
                 )
@@ -1532,31 +1547,29 @@ class GAM(Core, MetaTermMixin):
                 return self._flatten_mesh(Xs, term=term)
 
         # all other Terms
-        elif hasattr(self.terms[term], 'edge_knots_'):
-            x = {}
-            if np.array(self.terms[term].edge_knots_).ndim > 1 and isiterable(self.terms[term].feature):
+        elif hasattr_all(terms, 'edge_knots_'):
 
-                for i, feat in enumerate(self.terms[term].feature):
-                    ek = self.terms[term].edge_knots_[i]
-                    x[feat] = np.linspace( ek[0], ek[1], num=n)
-            else:
-                ek = self.terms[term].edge_knots_
-                x[self.terms[term].feature] = np.linspace( ek[0], ek[1], num=n)
+            x = {}
+            for term_ in terms:
+                if np.array(term_.edge_knots_).ndim > 1 and isiterable(term_.feature):
+
+                    for i, feat in enumerate(term_.feature):
+                        ek = term_.edge_knots_[i]
+                        x[feat] = np.linspace( ek[0], ek[1], num=n)
+                else:
+                    ek = term_.edge_knots_
+                    x[term_.feature] = np.linspace( ek[0], ek[1], num=n)
 
             if meshgrid:
                 return tuple(v for k, v in x.items())
 
             # fill in feature matrix with only relevant features for this term
             X = np.zeros((n, self.statistics_['m_features']))
-            if isiterable(self.terms[term].feature):
-                for feat in self.terms[term].feature:
-                    X[:, feat] = x[feat]
-            else:
-                X[:, self.terms[term].feature] = x[self.terms[term].feature]
+            for feat in x.keys():
+                X[:, feat] = x[feat]
 
-            self.terms[term].by = 0
             if getattr(self.terms[term], 'by', None) is not None:
-                if self.terms[term].by not in flatten(self.terms[term].feature):
+                if self.terms[term].by not in x.keys():
                     X[:, self.terms[term].by] = 1.0
 
             return X
