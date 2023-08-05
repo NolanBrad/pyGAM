@@ -585,3 +585,43 @@ class TestRegressions(object):
         """
         X, y = mcycle_X_y
         assert mcycle_gam.score(X, y) <= 1
+
+    def test_model_method_single_term(self, mcycle_gam, mcycle_X_y):
+        """
+        regression test
+
+        model returns the coefs and the features
+        """
+        X, y = mcycle_X_y
+        m,c = mcycle_gam.model(X=X, term=-1)
+
+        assert c.shape == (20+1,)
+        assert m.shape == (len(X), 20+1)
+
+        m0,c0 = mcycle_gam.model(X=X, term=0)
+        assert c0.shape == (20,)
+        assert m0.shape == (len(X), 20)
+
+        y_pred1 = mcycle_gam.partial_dependence(0, X=X, meshgrid=False)
+        y_pred2 = np.dot(m0,c0).flatten()
+        assert np.allclose(y_pred1, y_pred2)
+
+    def test_model_method_multiple_terms(self, wage_X_y, wage_gam):
+        """
+        regression test.
+
+        model returns the coefs and the features
+        """
+        X, y = wage_X_y
+        m,c = wage_gam.model(X=X, term=-1)
+
+        assert c.shape == (46,)
+        assert m.shape == (X.shape[0], 46)
+
+        m0,c0 = wage_gam.model(X=X, term=0)
+        assert c0.shape == (20,)
+        assert m0.shape == (X.shape[0], 20)
+
+        m2,c2 = wage_gam.model(X=X, term=2)
+        assert c2.shape == (5,)
+        assert m2.shape == (X.shape[0], 5)
