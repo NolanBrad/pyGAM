@@ -140,8 +140,14 @@ class TestPartialDepencence(object):
         X, y = mcycle_X_y
 
         gam_intercept = LinearGAM(fit_intercept=True).fit(X, y)
+
+        # These are Ok
+        pred = gam_intercept.partial_dependence(term=-1)
+        pred = gam_intercept.partial_dependence(term=0)
+
+        #Exception only rasied if you ask for the intercept term with supplying X
         with pytest.raises(ValueError):
-            gam_intercept.partial_dependence(term=-1)
+            pred = gam_intercept.partial_dependence(term=1)
 
         gam_no_intercept = LinearGAM(fit_intercept=False).fit(X, y)
         gam_no_intercept.partial_dependence(term=-1)

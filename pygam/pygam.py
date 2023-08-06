@@ -1528,9 +1528,9 @@ class GAM(Core, MetaTermMixin):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
-        # cant do Intercept
-        if attr_any_equal(terms, 'isintercept', True):
-            raise ValueError('cannot create grid for intercept term')
+        # Cant only do intercepts
+        if attr_all_equal(terms, 'isintercept', True):
+            raise ValueError('Cannot create grid for only intercept terms')
 
         # process each subterm in a TensorTerm
         if self.terms[term].istensor:
@@ -1546,37 +1546,35 @@ class GAM(Core, MetaTermMixin):
             else:
                 return self._flatten_mesh(Xs, term=term)
 
-        # all other Terms
-        elif hasattr_all(terms, 'edge_knots_'):
+        x = {}
+        for term_ in terms:
 
-            x = {}
-            for term_ in terms:
-                if np.array(term_.edge_knots_).ndim > 1 and isiterable(term_.feature):
+            if term_.isintercept or not hasattr(term_, 'isintercept'):
+                # Skip intercept terms or terms without edgeknots
+                break
 
-                    for i, feat in enumerate(term_.feature):
-                        ek = term_.edge_knots_[i]
-                        x[feat] = np.linspace( ek[0], ek[1], num=n)
-                else:
-                    ek = term_.edge_knots_
-                    x[term_.feature] = np.linspace( ek[0], ek[1], num=n)
+            if np.array(term_.edge_knots_).ndim > 1 and isiterable(term_.feature):
 
-            if meshgrid:
-                return tuple(v for k, v in x.items())
+                for i, feat in enumerate(term_.feature):
+                    ek = term_.edge_knots_[i]
+                    x[feat] = np.linspace( ek[0], ek[1], num=n)
+            else:
+                ek = term_.edge_knots_
+                x[term_.feature] = np.linspace( ek[0], ek[1], num=n)
 
-            # fill in feature matrix with only relevant features for this term
-            X = np.zeros((n, self.statistics_['m_features']))
-            for feat in x.keys():
-                X[:, feat] = x[feat]
+        if meshgrid:
+            return tuple(v for k, v in x.items())
 
-            if getattr(self.terms[term], 'by', None) is not None:
-                if self.terms[term].by not in x.keys():
-                    X[:, self.terms[term].by] = 1.0
+        # fill in feature matrix with only relevant features for this term
+        X = np.zeros((n, self.statistics_['m_features']))
+        for feat in x.keys():
+            X[:, feat] = x[feat]
 
-            return X
+        if getattr(self.terms[term], 'by', None) is not None:
+            if self.terms[term].by not in x.keys():
+                X[:, self.terms[term].by] = 1.0
 
-        # dont know what to do here
-        else:
-            raise TypeError('Unexpected term type: {}'.format(self.terms[term]))
+        return X
 
     def partial_dependence(
         self, term, X=None, width=None, quantiles=None, meshgrid=False
@@ -1649,10 +1647,6 @@ class GAM(Core, MetaTermMixin):
                     term, len(self.terms)
                 )
             )
-
-        # cant do Intercept
-        if self.terms[term].isintercept:
-            raise ValueError('cannot create grid for intercept term')
 
         if X is None:
             X = self.generate_X_grid(term=term, meshgrid=meshgrid)
