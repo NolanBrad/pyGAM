@@ -16,6 +16,7 @@ from pygam.terms import l
 from pygam.terms import s
 from pygam.terms import f
 from pygam.terms import te
+from pygam.terms import fn
 from pygam.terms import intercept
 
 __all__ = [
@@ -30,6 +31,7 @@ __all__ = [
     's',
     'f',
     'te',
+    'fn',
     'intercept',
 ]
 

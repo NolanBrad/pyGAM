@@ -316,13 +316,13 @@ def check_X(
     # check our categorical data has no new categories
     if (edge_knots is not None) and (dtypes is not None) and (features is not None):
         # get a flattened list of tuples
-        edge_knots = flatten(edge_knots)[::-1]
-        dtypes = flatten(dtypes)
-        assert len(edge_knots) % 2 == 0  # sanity check
+        #edge_knots = flatten(edge_knots)[::-1]
+        #dtypes = flatten(dtypes)
+        #assert len(edge_knots) % 2 == 0  # sanity check
 
         # form pairs
-        n = len(edge_knots) // 2
-        edge_knots = [(edge_knots.pop(), edge_knots.pop()) for _ in range(n)]
+        #n = len(edge_knots) // 2
+        #edge_knots = [(edge_knots.pop(), edge_knots.pop()) for _ in range(n)]
 
         # check each categorical term
         for i, ek in enumerate(edge_knots):
@@ -843,10 +843,22 @@ def isiterable(obj, reject_string=True):
     bool, if the object is itereable.
     """
 
-    iterable = hasattr(obj, '__len__')
+    iterable = True
+
+    try:
+        _ = (e for e in obj)
+    except TypeError:
+        iterable = False
+
+    try:
+        _ = iter(obj)
+    except TypeError:
+        iterable = False
+
+    #iterable = iterable and hasattr(obj, '__len__')
 
     if reject_string:
-        iterable = iterable and not isinstance(obj, str)
+        iterable = iterable and (not isinstance(obj, str))
 
     return iterable
 
@@ -909,6 +921,29 @@ def flatten(iterable):
     else:
         return iterable
 
+def attr_any_equal(iter, attr, value):
+    any_ = False
+    for i in iter:
+        any_ = any_ or (getattr(i, attr) == value)
+    return any_
+
+def attr_all_equal(iter, attr, value):
+    all_ = True
+    for i in iter:
+        all_ = all_ and (getattr(i, attr) == value)
+    return all_
+
+def hasattr_any(iter, attr ):
+    any_ = False
+    for i in iter:
+        any_ = any_ or hasattr(i, attr)
+    return any_
+
+def hasattr_all(iter, attr):
+    all_ = True
+    for i in iter:
+        all_ = all_ and hasattr(i, attr)
+    return all_
 
 def tensor_product(a, b, reshape=True):
     """

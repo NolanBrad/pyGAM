@@ -7,6 +7,7 @@ from abc import abstractmethod, abstractproperty
 from collections import defaultdict
 import warnings
 from copy import deepcopy
+from inspect import signature
 
 import numpy as np
 import scipy as sp
@@ -404,6 +405,23 @@ class Term(Core):
 
         return Cs
 
+    def _gen_edge_knots(self, data, dtype, verbose=True):
+
+        if hasattr(self, 'feature'):
+            if isiterable(self.feature):
+                # Multiple features
+                self.edge_knots_ = []
+                for feat in self.feature:
+                    self.edge_knots_.append( gen_edge_knots(
+                        data[:, feat], dtype, verbose=verbose
+                    ))
+
+            else:
+                # Single feature
+                self.edge_knots_ = gen_edge_knots(
+                    data[:, self.feature], dtype, verbose=verbose
+                )
+
 
 class Intercept(Term):
     def __init__(self, verbose=False):
@@ -595,9 +613,8 @@ class LinearTerm(Term):
                 'but X has only {} dimensions'.format(self.feature, X.shape[1])
             )
 
-        self.edge_knots_ = gen_edge_knots(
-            X[:, self.feature], self.dtype, verbose=verbose
-        )
+        self._gen_edge_knots(X, self.dtype, verbose=verbose)
+
         return self
 
     def build_columns(self, X, verbose=False):
@@ -616,6 +633,185 @@ class LinearTerm(Term):
         scipy sparse array with n rows
         """
         return sp.sparse.csc_matrix(X[:, self.feature][:, np.newaxis])
+
+
+class FunctionTerm(Term):
+    def __init__(self, feature, fnDict, lam=0.6, penalties='auto', verbose=False):
+        """creates an instance of a LinearTerm
+
+        Parameters
+        ----------
+        feature : int or array
+            int: Index of the feature to use for the feature function. Will be used for all functions in fnDict
+            1 dim array of ints: Indexs of the features to use for the feature function. Will be used for all functions in fnDict
+            2 dim array of ints: Array for each function in fnDict. Indexs of the features to use for the indexed feature function.
+
+        fnDict : Dictionary
+            Dictionary of
+            key: function name string
+            value: functionwith a single parameter of an array, returning an array of the same size
+
+        lam :  float or iterable of floats
+            Strength of smoothing penalty. Must be a positive float.
+            Larger values enforce stronger smoothing.
+
+            If single value is passed, it will be repeated for every penalty.
+
+            If iterable is passed, the length of `lam` must be equal to the
+            length of `penalties`
+
+        penalties : {'auto', 'derivative', 'l2', None} or callable or iterable
+            Type of smoothing penalty to apply to the term.
+
+            If an iterable is used, multiple penalties are applied to the term.
+            The length of the iterable must match the length of `lam`.
+
+            If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
+            and L2/ridge smoothing for 'categorical' dtypes.
+
+            Custom penalties can be passed as a callable.
+
+        Attributes
+        ----------
+        n_coefs : int
+            Number of coefficients contributed by the term to the model
+
+        istensor : bool
+            whether the term is a tensor product of sub-terms
+
+        isintercept : bool
+            whether the term is an intercept
+
+        hasconstraint : bool
+            whether the term has any constraints
+
+        info : dict
+            contains dict with the sufficient information to duplicate the term
+        """
+        self._name = 'function_term'
+        self._minimal_name = 'fn'
+        self.functionDict = fnDict
+
+
+        # Sort out the feature parameter, convert to the superset of 2 dim array
+        if feature is None:
+            raise ValueError( 'FunctionTerm requires feature {}, to be an array or int'.format(feature))
+
+        if fnDict is None or type(fnDict) != dict:
+            raise ValueError( 'FunctionTerm requires fnDict {}, to be an dict'.format(fnDict))
+
+        if  np.array(feature).ndim == 0 and type(feature) is int:
+            self.features = np.tile(np.array(feature), (len(self.functionDict),1) )
+        elif  np.array(feature).ndim == 1:
+            self.features =  np.tile(feature, (len(self.functionDict),1) )
+        elif np.array(feature).ndim == 2:
+            self.features = np.array(feature)
+        else:
+            raise ValueError( 'FunctionTerm requires feature {}, to be an array'.format(self.feature))
+
+
+        flat_feature = np.unique(self.features.flatten()).tolist()
+
+        super(FunctionTerm, self).__init__(
+            feature=flat_feature,
+            lam=lam,
+            penalties=penalties,
+            constraints=None,
+            dtype='numerical',
+            fit_linear=True,
+            fit_splines=False,
+            verbose=verbose,
+        )
+        self._exclude += ['fit_splines', 'fit_linear', 'dtype', 'constraints']
+
+    def __repr__(self):
+        if hasattr(self, '_minimal_name'):
+            name = self._minimal_name
+        else:
+            name = self.__class__.__name__
+
+        fnDict = {}
+        for i, (fnStr,_) in enumerate(self.functionDict.items()):
+            args = ','.join([str(x) for x in self.features[i]])
+            fnDict['{}({})'.format(fnStr,args)] = None
+
+        return nice_repr(
+            name,
+            fnDict,
+            line_width=self._line_width,
+            line_offset=self._line_offset,
+            decimals=4,
+            args=None,
+        )
+
+    @property
+    def n_coefs(self):
+        """Number of coefficients contributed by the term to the model"""
+        return len(self.functionDict)
+
+    def compile(self, X, verbose=False):
+        """method to validate and prepare data-dependent parameters
+
+        Parameters
+        ---------
+        X : array-like
+            Input dataset
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        None
+        """
+        if self.functionDict == None and type(self.functionDict) == dict:
+            raise ValueError(
+                'FunctionTerm requires functionDict {}, '.format(self.functionDict)
+            )
+
+        if len(self.functionDict) != len(self.features):
+            raise ValueError(
+                'FunctionTerm requires functionDict len {} to be the same as features len, but has {}, '.format(len(self.functionDict),  len(self.features))
+            )
+
+        self._gen_edge_knots(X, self.dtype, verbose=verbose)
+
+        # Check the features and fnDict parameters match
+        for i, (funcStr, func) in enumerate(self.functionDict.items()):
+            n_params = len(signature(func).parameters)
+            n_feats = len(self.features[i])
+            if n_params != n_feats:
+                raise ValueError(
+                    'FunctionTerm requires number of features for function {} to be len {} but has {}, '.format(funcStr, n_feats, n_params)
+                )
+
+        return self
+
+
+    def build_columns(self, X, verbose=False):
+        """construct the model matrix columns for the term
+
+        Parameters
+        ----------
+        X : array-like
+            Input dataset with n rows
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        scipy sparse array with n rows
+        """
+        result = np.zeros((X.shape[0], len(self.functionDict)))
+
+        for i, (_, fn) in enumerate(self.functionDict.items()):
+            xlist = []
+            for feat in self.features[i]:
+                xlist.append(X[:, feat])
+            result[:,i] = fn(*xlist)
+
+        return sp.sparse.csc_matrix(result)
 
 
 class SplineTerm(Term):
@@ -827,9 +1023,7 @@ class SplineTerm(Term):
             )
 
         if not hasattr(self, 'edge_knots_'):
-            self.edge_knots_ = gen_edge_knots(
-                X[:, self.feature], self.dtype, verbose=verbose
-            )
+            self._gen_edge_knots(X, self.dtype, verbose=verbose)
         return self
 
     def build_columns(self, X, verbose=False):
@@ -847,7 +1041,11 @@ class SplineTerm(Term):
         -------
         scipy sparse array with n rows
         """
-        X[:, self.feature][:, np.newaxis]
+        #X[:, self.feature][:, np.newaxis]
+
+        # Splines only one feature, and thus one set of edge knots
+        if isiterable(self.feature) or np.array(self.edge_knots_).ndim > 1:
+            raise ValueError('Splines cant have multiple features or muliple edge knots')
 
         splines = b_spline_basis(
             X[:, self.feature],
@@ -979,9 +1177,8 @@ class FactorTerm(SplineTerm):
         super(FactorTerm, self).compile(X)
 
         self.n_splines = len(np.unique(X[:, self.feature]))
-        self.edge_knots_ = gen_edge_knots(
-            X[:, self.feature], self.dtype, verbose=verbose
-        )
+        self._gen_edge_knots(X, self.dtype, verbose=verbose)
+
         return self
 
     def build_columns(self, X, verbose=False):
@@ -1106,6 +1303,14 @@ class MetaTermMixin(object):
                     continue
 
                 values.append(getattr(term, name, None))
+
+            allNone = True
+            for val in values:
+                if val is not None:
+                    allNone = False
+
+            if allNone:
+                values = None
             return values
 
         return self._super_get(name)
@@ -1889,6 +2094,14 @@ def l(feature, lam=0.6, penalties='auto', verbose=False):  # noqa: E743
     """
     return LinearTerm(feature=feature, lam=lam, penalties=penalties, verbose=verbose)
 
+def fn(feature, fnDict, lam=0.6, penalties='auto', verbose=False):  # noqa: E743
+    """
+
+    See Also
+    --------
+    FunctionTerm : for developer details
+    """
+    return FunctionTerm(feature=feature, fnDict=fnDict, lam=lam, penalties=penalties, verbose=verbose)
 
 def s(
     feature,
@@ -1950,7 +2163,7 @@ intercept = Intercept()
 
 # copy docs
 for minimal_, class_ in zip(
-    [l, s, f, te], [LinearTerm, SplineTerm, FactorTerm, TensorTerm]
+    [l, s, f, te, fn], [LinearTerm, SplineTerm, FactorTerm, TensorTerm, FunctionTerm]
 ):
     minimal_.__doc__ = class_.__init__.__doc__ + minimal_.__doc__
 
@@ -1962,5 +2175,6 @@ TERMS = {
     'spline_term': SplineTerm,
     'factor_term': FactorTerm,
     'tensor_term': TensorTerm,
+    'function_term': FunctionTerm,
     'term_list': TermList,
 }
