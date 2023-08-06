@@ -13,6 +13,7 @@ from pygam.terms import (
     SplineTerm,
     LinearTerm,
     FactorTerm,
+    FunctionTerm,
     TensorTerm,
     TermList,
     s,
@@ -392,3 +393,250 @@ class TestRegressions(object):
 
         gam = PoissonGAM(s(0, constraints='monotonic_inc') + te(3, 1) + s(2)).fit(X, y)
         assert gam._is_fitted
+
+@pytest.fixture
+def fnDict_xx():
+    def xx(x1,x2):
+        return x1*x2
+    fn = {'xx':xx}
+    return fn
+
+@pytest.fixture
+def fnDict_xx2():
+    def xx2(x1,x2):
+        return np.power(x1*x2, 2)
+    fn = {'xx2':xx2}
+    return fn
+
+@pytest.fixture
+def fnDict_x2_x3():
+
+    def pwr(p=2):
+        def fn(x):
+            return np.power(x,p)
+        return fn
+
+    fn = {'x2':pwr(2), 'x3':pwr(3)}
+    return fn
+
+@pytest.fixture
+def fnDict_x2():
+
+    def pwr(p=2):
+        def fn(x):
+            return np.power(x,p)
+        return fn
+
+    fn = {'x2':pwr(2)}
+    return fn
+
+class TestFunctionTerm(object):
+    def test_no_fnDict(self, chicago_X_y):
+        X,y = chicago_X_y
+        with pytest.raises(ValueError):
+            LinearGAM(FunctionTerm(feature=0, fnDict=None), fit_intercept=False).fit(X,y)
+
+        with pytest.raises(ValueError):
+            LinearGAM(FunctionTerm(feature=0, fnDict={}), fit_intercept=False).fit(X,y)
+
+    def test_no_feature(self, fnDict_x2, chicago_X_y):
+        with pytest.raises(ValueError):
+            LinearGAM(FunctionTerm(feature=None, fnDict=fnDict_x2), fit_intercept=False).fit(X,y)
+
+    def test_basic_functionterm(self, fnDict_x2):
+        """
+        Basic FunctionTerm checks, no intercept
+        """
+        slope = 0.5
+        x = np.linspace(-10,10,100)
+        y = slope* np.power(x,2)
+
+        gam = LinearGAM(FunctionTerm(0, fnDict=fnDict_x2), fit_intercept=False)
+        gam.fit(x, y)
+
+        m,c = gam.model(X=x, term=-1)
+        assert c.shape == (1,)
+        assert np.allclose(slope, c[0])
+        assert m.shape == (x.shape[0], 1)
+
+
+        m,c = gam.model(X=x, term=0)
+        assert c.shape == (1,)
+        assert np.allclose(slope, c[0])
+        assert m.shape == (x.shape[0], 1)
+
+        y_pred1 = gam.partial_dependence(0, X=x, meshgrid=False)
+        y_pred2 = np.dot(m,c).flatten()
+        assert np.allclose(y_pred1, y_pred2)
+
+    def test_mult_features_functionterm(self, fnDict_xx):
+        """
+        Basic FunctionTerm checks, multiple features, no intercept
+        """
+        slope = 0.5
+        x1 = np.linspace(-10,10,100)
+        x2 = np.linspace(-5,5,100)
+        x = np.vstack((x1,x2)).T
+
+        y = slope*x1*x2
+
+        gam = LinearGAM(FunctionTerm([0,1], fnDict=fnDict_xx), fit_intercept=False)
+        gam.fit(x, y)
+
+        m,c = gam.model(X=x, term=-1)
+        assert c.shape == (1,)
+        assert np.allclose(slope, c[0],  rtol=1e-4)
+        assert m.shape == (x.shape[0], 1)
+
+        m0,c0 = gam.model(X=x, term=0)
+        assert c0.shape == (1,)
+        assert np.allclose(slope, c0[0], rtol=1e-4)
+        assert m0.shape == (x.shape[0], 1)
+
+        y_pred = gam.partial_dependence(-1, X=x, meshgrid=False)
+        y_pred0 = gam.partial_dependence(0, X=x, meshgrid=False)
+        y_pred_model = np.dot(m,c).ravel()
+        assert np.allclose(y_pred, y_pred_model)
+        assert np.allclose(y_pred0, y_pred_model)
+
+        X0 = gam.generate_X_grid(term=0, n=500, meshgrid=True)
+        X = gam.generate_X_grid(term=-1, n=500, meshgrid=True)
+        assert np.allclose(X0, X)
+
+        X0 = gam.generate_X_grid(term=0, n=500, meshgrid=False)
+        X = gam.generate_X_grid(term=-1, n=500, meshgrid=False)
+        assert np.allclose(X0, X)
+
+    def test_mult_features_and_terms_functionterm(self, fnDict_xx):
+        """
+        Basic FunctionTerm checks, multiple features, no intercept
+        """
+        slope = 0.5
+        x1 = np.linspace(-10,10,100)
+        x2 = np.linspace(-5,5,100)
+        x = np.vstack((x1,x2)).T
+
+        y = 2* slope*x1*x2
+
+        gam = LinearGAM((FunctionTerm([0,1], fnDict=fnDict_xx) + FunctionTerm([1,0], fnDict=fnDict_xx)), fit_intercept=False)
+        gam.fit(x, y)
+
+        assert len(gam.terms) == 2
+
+        m,c = gam.model(X=x, term=-1)
+        assert c.shape == (2,)
+        assert np.allclose(slope, c[0],  rtol=1e-4)
+        assert np.allclose(slope, c[1],  rtol=1e-4)
+        assert m.shape == (x.shape[0], 2)
+
+        m0,c0 = gam.model(X=x, term=0)
+        assert c0.shape == (1,)
+        assert np.allclose(slope, c0[0], rtol=1e-4)
+        assert m0.shape == (x.shape[0], 1)
+
+        m1,c1 = gam.model(X=x, term=1)
+        assert c1.shape == (1,)
+        assert np.allclose(slope, c1[0], rtol=1e-4)
+        assert m1.shape == (x.shape[0], 1)
+
+        y_pred = gam.partial_dependence(-1, X=x, meshgrid=False)
+        y_pred0 = gam.partial_dependence(0, X=x, meshgrid=False)
+        y_pred1 = gam.partial_dependence(1, X=x, meshgrid=False)
+        y_pred_model = np.dot(m,c).ravel()
+        assert np.allclose(y_pred, y_pred_model)
+        assert np.allclose(y_pred0+y_pred1, y_pred_model)
+
+        X0 = gam.generate_X_grid(term=0, n=500, meshgrid=True)
+        X1 = gam.generate_X_grid(term=1, n=500, meshgrid=True)
+        X = gam.generate_X_grid(term=-1, n=500, meshgrid=True)
+        assert np.allclose(X0, X)
+        assert np.allclose(X1, X)
+
+        X0 = gam.generate_X_grid(term=0, n=500, meshgrid=False)
+        X1 = gam.generate_X_grid(term=1, n=500, meshgrid=False)
+        X = gam.generate_X_grid(term=-1, n=500, meshgrid=False)
+        assert np.allclose(X0, X)
+        assert np.allclose(X1, X)
+
+    def test_mult_features_and_terms_intercept_functionterm(self, fnDict_xx):
+        """
+        Basic FunctionTerm checks, multiple features, no intercept
+        """
+        slope = 0.5
+        intercept = 20
+        x1 = np.linspace(-10,10,100)
+        x2 = np.linspace(-5,5,100)
+        x = np.vstack((x1,x2)).T
+
+        y = 2* slope*x1*x2 + intercept
+
+        gam = LinearGAM((FunctionTerm([0,1], fnDict=fnDict_xx) + FunctionTerm([1,0], fnDict=fnDict_xx)), fit_intercept=True)
+        gam.fit(x, y)
+
+        assert len(gam.terms) == 3
+
+        m,c = gam.model(X=x, term=-1)
+        assert c.shape == (3,)
+        assert np.allclose(slope, c[0],  rtol=1e-4)
+        assert np.allclose(slope, c[1],  rtol=1e-4)
+        assert np.allclose(intercept, c[2],  rtol=1e-4)
+        assert m.shape == (x.shape[0], 3)
+
+        m0,c0 = gam.model(X=x, term=0)
+        assert c0.shape == (1,)
+        assert np.allclose(slope, c0[0], rtol=1e-4)
+        assert m0.shape == (x.shape[0], 1)
+
+        m1,c1 = gam.model(X=x, term=1)
+        assert c1.shape == (1,)
+        assert np.allclose(slope, c1[0], rtol=1e-4)
+        assert m1.shape == (x.shape[0], 1)
+
+    def test_mult_features_and_mixed_terms_functionterm(self, fnDict_xx, fnDict_x2_x3):
+        """
+        Basic FunctionTerm checks, multiple features, no intercept
+        """
+        slope = 0.5
+        x1 = np.linspace(-10,10,100)
+        x2 = np.linspace(-5,5,100)
+        x = np.vstack((x1,x2)).T
+
+        y = slope*x1*x2 + slope*x1*x1 + slope*x1*x1*x1
+
+        gam = LinearGAM((FunctionTerm([0,1], fnDict=fnDict_xx) + FunctionTerm(0, fnDict=fnDict_x2_x3)), fit_intercept=False)
+        gam.fit(x, y)
+
+        assert len(gam.terms) == 2
+
+        m,c = gam.model(X=x, term=-1)
+        assert c.shape == (3,)
+        assert np.allclose(0.3, c[0],  rtol=1e-4)
+        assert np.allclose(0.6, c[1],  rtol=1e-4)
+        assert np.allclose(slope, c[2],  rtol=1e-4)
+        assert m.shape == (x.shape[0], 3)
+
+        m0,c0 = gam.model(X=x, term=0)
+        assert c0.shape == (1,)
+        assert np.allclose(0.3, c0[0], rtol=1e-4)
+        assert m0.shape == (x.shape[0], 1)
+
+        m1,c1 = gam.model(X=x, term=1)
+        assert c1.shape == (2,)
+        assert np.allclose(0.6, c1[0], rtol=1e-4)
+        assert np.allclose(slope, c1[1], rtol=1e-4)
+        assert m1.shape == (x.shape[0], 2)
+
+        y_pred = gam.partial_dependence(-1, X=x, meshgrid=False)
+        y_pred0 = gam.partial_dependence(0, X=x, meshgrid=False)
+        y_pred1 = gam.partial_dependence(1, X=x, meshgrid=False)
+        y_pred_model = np.dot(m,c).ravel()
+        assert np.allclose(y_pred, y_pred_model)
+        assert np.allclose(y_pred0+y_pred1, y_pred_model)
+
+        y_pred = gam.partial_dependence(-1, meshgrid=False)
+        y_pred0 = gam.partial_dependence(0, meshgrid=False)
+        y_pred1 = gam.partial_dependence(1, meshgrid=False)
+        y_pred_model = np.dot(m,c).ravel()
+        assert np.allclose(y_pred, y_pred_model)
+        assert np.allclose(y_pred0+y_pred1, y_pred_model)
+
