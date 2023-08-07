@@ -690,7 +690,7 @@ class FunctionTerm(Term):
         """
         self._name = 'function_term'
         self._minimal_name = 'fn'
-        self.functionDict = fnDict
+        self.fnDict = fnDict
 
 
         # Sort out the feature parameter, convert to the superset of 2 dim array
@@ -701,9 +701,9 @@ class FunctionTerm(Term):
             raise ValueError( 'FunctionTerm requires fnDict {}, to be an dict'.format(fnDict))
 
         if  np.array(feature).ndim == 0 and type(feature) is int:
-            self.features = np.tile(np.array(feature), (len(self.functionDict),1) )
+            self.features = np.tile(np.array(feature), (len(self.fnDict),1) )
         elif  np.array(feature).ndim == 1:
-            self.features =  np.tile(feature, (len(self.functionDict),1) )
+            self.features =  np.tile(feature, (len(self.fnDict),1) )
         elif np.array(feature).ndim == 2:
             self.features = np.array(feature)
         else:
@@ -722,7 +722,7 @@ class FunctionTerm(Term):
             fit_splines=False,
             verbose=verbose,
         )
-        self._exclude += ['fit_splines', 'fit_linear', 'dtype', 'constraints']
+        self._exclude += ['fit_splines', 'fit_linear', 'dtype', 'constraints', 'features']
 
     def __repr__(self):
         if hasattr(self, '_minimal_name'):
@@ -731,7 +731,7 @@ class FunctionTerm(Term):
             name = self.__class__.__name__
 
         fnDict = {}
-        for i, (fnStr,_) in enumerate(self.functionDict.items()):
+        for i, (fnStr,_) in enumerate(self.fnDict.items()):
             args = ','.join([str(x) for x in self.features[i]])
             fnDict['{}({})'.format(fnStr,args)] = None
 
@@ -747,7 +747,7 @@ class FunctionTerm(Term):
     @property
     def n_coefs(self):
         """Number of coefficients contributed by the term to the model"""
-        return len(self.functionDict)
+        return len(self.fnDict)
 
     def compile(self, X, verbose=False):
         """method to validate and prepare data-dependent parameters
@@ -764,20 +764,20 @@ class FunctionTerm(Term):
         -------
         None
         """
-        if self.functionDict == None and type(self.functionDict) == dict:
+        if self.fnDict == None and type(self.fnDict) == dict:
             raise ValueError(
-                'FunctionTerm requires functionDict {}, '.format(self.functionDict)
+                'FunctionTerm requires fnDict {}, '.format(self.fnDict)
             )
 
-        if len(self.functionDict) != len(self.features):
+        if len(self.fnDict) != len(self.features):
             raise ValueError(
-                'FunctionTerm requires functionDict len {} to be the same as features len, but has {}, '.format(len(self.functionDict),  len(self.features))
+                'FunctionTerm requires fnDict len {} to be the same as features len, but has {}, '.format(len(self.fnDict),  len(self.features))
             )
 
         self._gen_edge_knots(X, self.dtype, verbose=verbose)
 
         # Check the features and fnDict parameters match
-        for i, (funcStr, func) in enumerate(self.functionDict.items()):
+        for i, (funcStr, func) in enumerate(self.fnDict.items()):
             n_params = len(signature(func).parameters)
             n_feats = len(self.features[i])
             if n_params != n_feats:
@@ -803,9 +803,9 @@ class FunctionTerm(Term):
         -------
         scipy sparse array with n rows
         """
-        result = np.zeros((X.shape[0], len(self.functionDict)))
+        result = np.zeros((X.shape[0], len(self.fnDict)))
 
-        for i, (_, fn) in enumerate(self.functionDict.items()):
+        for i, (_, fn) in enumerate(self.fnDict.items()):
             xlist = []
             for feat in self.features[i]:
                 xlist.append(X[:, feat])
