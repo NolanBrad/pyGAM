@@ -430,6 +430,17 @@ def fnDict_x2():
     fn = {'x2':pwr(2)}
     return fn
 
+@pytest.fixture
+def fnDict_x3():
+
+    def pwr(p=2):
+        def fn(x):
+            return np.power(x,p)
+        return fn
+
+    fn = {'x3':pwr(3)}
+    return fn
+
 class TestFunctionTerm(object):
     def test_no_fnDict(self, chicago_X_y):
         X,y = chicago_X_y
@@ -639,4 +650,19 @@ class TestFunctionTerm(object):
         y_pred_model = np.dot(m,c).ravel()
         assert np.allclose(y_pred, y_pred_model)
         assert np.allclose(y_pred0+y_pred1, y_pred_model)
+
+    def test_functonterm_build_from_info(self, chicago_X_y, fnDict_x2, fnDict_x3):
+        """we can rebuild terms from info"""
+        terms = [FunctionTerm(0, fnDict=fnDict_x2), FunctionTerm(0, fnDict=fnDict_x2) + FunctionTerm(0, fnDict=fnDict_x3) ]
+
+        X,y = chicago_X_y
+
+        for term in terms:
+            built = Term.build_from_info(term.info)
+            assert built == term
+            built_y = LinearGAM(built).fit(X,y).predict(X)
+            term_y = LinearGAM(term).fit(X,y).predict(X)
+
+            assert np.allclose(built_y, term_y)
+
 
