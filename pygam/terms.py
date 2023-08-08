@@ -636,12 +636,12 @@ class LinearTerm(Term):
 
 
 class FunctionTerm(Term):
-    def __init__(self, feature, fnDict, lam=0.6, penalties='auto', verbose=False):
+    def __init__(self, features, fnDict, lam=0.6, penalties='auto', verbose=False):
         """creates an instance of a LinearTerm
 
         Parameters
         ----------
-        feature : int or array
+        features : int or array
             int: Index of the feature to use for the feature function. Will be used for all functions in fnDict
             1 dim array of ints: Indexs of the features to use for the feature function. Will be used for all functions in fnDict
             2 dim array of ints: Array for each function in fnDict. Indexs of the features to use for the indexed feature function.
@@ -694,18 +694,18 @@ class FunctionTerm(Term):
 
 
         # Sort out the feature parameter, convert to the superset of 2 dim array
-        if feature is None:
-            raise ValueError( 'FunctionTerm requires feature {}, to be an array or int'.format(feature))
+        if features is None:
+            raise ValueError( 'FunctionTerm requires feature, to be an array or int')
 
         if fnDict is None or type(fnDict) != dict:
             raise ValueError( 'FunctionTerm requires fnDict {}, to be an dict'.format(fnDict))
 
-        if  np.array(feature).ndim == 0 and type(feature) is int:
-            self.features = np.tile(np.array(feature), (len(self.fnDict),1) )
-        elif  np.array(feature).ndim == 1:
-            self.features =  np.tile(feature, (len(self.fnDict),1) )
-        elif np.array(feature).ndim == 2:
-            self.features = np.array(feature)
+        if  np.array(features).ndim == 0 and type(features) is int:
+            self.features = np.tile(np.array(features), (len(self.fnDict),1) )
+        elif  np.array(features).ndim == 1:
+            self.features =  np.tile(features, (len(self.fnDict),1) )
+        elif np.array(features).ndim == 2:
+            self.features = np.array(features)
         else:
             raise ValueError( 'FunctionTerm requires feature {}, to be an array'.format(self.feature))
 
@@ -722,7 +722,7 @@ class FunctionTerm(Term):
             fit_splines=False,
             verbose=verbose,
         )
-        self._exclude += ['fit_splines', 'fit_linear', 'dtype', 'constraints', 'features']
+        self._exclude += ['fit_splines', 'fit_linear', 'dtype', 'constraints', 'feature']
 
     def __repr__(self):
         if hasattr(self, '_minimal_name'):
