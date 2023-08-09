@@ -445,14 +445,14 @@ class TestFunctionTerm(object):
     def test_no_fnDict(self, chicago_X_y):
         X,y = chicago_X_y
         with pytest.raises(ValueError):
-            LinearGAM(FunctionTerm(feature=0, fnDict=None), fit_intercept=False).fit(X,y)
+            LinearGAM(FunctionTerm(features=0, fnDict=None), fit_intercept=False).fit(X,y)
 
         with pytest.raises(ValueError):
-            LinearGAM(FunctionTerm(feature=0, fnDict={}), fit_intercept=False).fit(X,y)
+            LinearGAM(FunctionTerm(features=0, fnDict={}), fit_intercept=False).fit(X,y)
 
     def test_no_feature(self, fnDict_x2, chicago_X_y):
         with pytest.raises(ValueError):
-            LinearGAM(FunctionTerm(feature=None, fnDict=fnDict_x2), fit_intercept=False).fit(X,y)
+            LinearGAM(FunctionTerm(features=None, fnDict=fnDict_x2), fit_intercept=False).fit(X,y)
 
     def test_basic_functionterm(self, fnDict_x2):
         """
