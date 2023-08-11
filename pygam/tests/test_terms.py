@@ -20,6 +20,7 @@ from pygam.terms import (
     te,
     l,
     f,
+    fn,
 )
 from pygam.utils import flatten
 
@@ -614,7 +615,7 @@ class TestFunctionTerm(object):
 
         y = slope*x1*x2 + slope*x1*x1 + slope*x1*x1*x1
 
-        gam = LinearGAM((FunctionTerm([0,1], fnDict=fnDict_xx) + FunctionTerm(0, fnDict=fnDict_x2_x3)), fit_intercept=False)
+        gam = LinearGAM((fn([0,1], fnDict=fnDict_xx) + fn(0, fnDict=fnDict_x2_x3)), fit_intercept=False)
         gam.fit(x, y)
 
         assert len(gam.terms) == 2
