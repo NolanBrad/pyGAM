@@ -2094,14 +2094,14 @@ def l(feature, lam=0.6, penalties='auto', verbose=False):  # noqa: E743
     """
     return LinearTerm(feature=feature, lam=lam, penalties=penalties, verbose=verbose)
 
-def fn(feature, fnDict, lam=0.6, penalties='auto', verbose=False):  # noqa: E743
+def fn(features, fnDict, lam=0.6, penalties='auto', verbose=False):  # noqa: E743
     """
 
     See Also
     --------
     FunctionTerm : for developer details
     """
-    return FunctionTerm(feature=feature, fnDict=fnDict, lam=lam, penalties=penalties, verbose=verbose)
+    return FunctionTerm(features=features, fnDict=fnDict, lam=lam, penalties=penalties, verbose=verbose)
 
 def s(
     feature,
