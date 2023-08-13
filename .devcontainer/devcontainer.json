@@ -4,5 +4,6 @@
     "ghcr.io/devcontainers/features/python:1": {"version":"3.9"},
     "ghcr.io/devcontainers/features/sshd:1": {"version": "latest" },
     "ghcr.io/devcontainers-contrib/features/poetry:2": {}
-  }
+  },
+  "postCreateCommand": "poetry config virtualenvs.create false && poetry install -- with dev"
 }
