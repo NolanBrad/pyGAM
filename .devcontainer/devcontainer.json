@@ -5,5 +5,5 @@
     "ghcr.io/devcontainers/features/sshd:1": {"version": "latest" },
     "ghcr.io/devcontainers-contrib/features/poetry:2": {}
   },
-  "postCreateCommand": "poetry config virtualenvs.create false && poetry install -- with dev"
+  "postCreateCommand": "poetry config virtualenvs.create false && poetry install -- with dev && poetry update"
 }
